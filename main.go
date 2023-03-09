@@ -52,7 +52,7 @@ func main() {
 	case "ls":
 		ls(fileName, pathName)
 	case "lsrecursive":
-		lsrecursive(fileName, pathName, true)
+		ls(fileName, pathName, true, true)
 	case "get":
 		get(fileName, pathName, outFileName)
 	case "put":
@@ -237,74 +237,67 @@ func get(fileName string, pathName string, outFileName string) {
 	}
 }
 
-func ls(fileName string, pathName string) {
-	file, err := os.OpenFile(fileName, os.O_RDWR, 0755)
-	if err != nil {
-		fmt.Printf("Failed to open drive image %s:\n  %s", fileName, err)
-		os.Exit(1)
-	}
-	defer file.Close()
-	pathName = strings.ToUpper(pathName)
-	volumeHeader, _, fileEntries, err := prodos.ReadDirectory(file, pathName)
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-	}
-	if len(pathName) == 0 {
-		pathName = "/" + volumeHeader.VolumeName
-	}
-	volumeBitmap, err := prodos.ReadVolumeBitmap(file)
-	if err != nil {
-		fmt.Printf("Failed to open drive image %s:\n  %s", fileName, err)
-		os.Exit(1)
-	}
-	freeBlocks := prodos.GetFreeBlockCount(volumeBitmap, volumeHeader.TotalBlocks)
-	prodos.DumpDirectory(freeBlocks, volumeHeader.TotalBlocks, pathName, fileEntries)
-}
-
-func lsrecursive(fileName string, pathName string, isStartPath bool) {
-	file, err := os.OpenFile(fileName, os.O_RDWR, 0755)
-	if err != nil {
-		fmt.Printf("Failed to open drive image %s:\n  %s", fileName, err)
-		os.Exit(1)
-	}
-	defer file.Close()
-	pathName = strings.ToUpper(pathName)
-	volumeHeader, _, fileEntries, err := prodos.ReadDirectory(file, pathName)
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-	}
-	if len(pathName) == 0 {
-		pathName = "/" + volumeHeader.VolumeName
-	}
-	volumeBitmap, err := prodos.ReadVolumeBitmap(file)
-	if err != nil {
-		fmt.Printf("Failed to open drive image %s:\n  %s", fileName, err)
-		os.Exit(1)
-	}
-	freeBlocks := prodos.GetFreeBlockCount(volumeBitmap, volumeHeader.TotalBlocks)
-
-	// Find all the subdirectories within this prodos prefix
-	subdirectories := []string{}
-	for i := 0; i < len(fileEntries); i++ {
-		if fileEntries[i].FileType == 15 { // DIR Filetype is 15
-			subdirectories = append(subdirectories, fileEntries[i].FileName)
+// ls Displays list of files in given path in prodos-catalog-style.
+// recursiveFlags:
+//  0: recursive?
+//  1: is this the initial call where the recurse began?
+func ls(fileName string, pathName string, recursiveFlags ...bool) {
+	// Process the recursive flags
+	recursive := false
+	isStartPath := false
+	for index, value := range recursiveFlags {
+		switch index {
+		case 0:
+			recursive = value
+		case 1:
+			isStartPath = value
 		}
 	}
 
-	// print file list w/o blocks info, save that to the very end
-	prodos.DumpDirectoryWithoutBlockInfo(freeBlocks, volumeHeader.TotalBlocks, pathName, fileEntries)
+	file, err := os.OpenFile(fileName, os.O_RDWR, 0755)
+	if err != nil {
+		fmt.Printf("Failed to open drive image %s:\n  %s", fileName, err)
+		os.Exit(1)
+	}
+	defer file.Close()
+	pathName = strings.ToUpper(pathName)
+	volumeHeader, _, fileEntries, err := prodos.ReadDirectory(file, pathName)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+	}
+	if len(pathName) == 0 {
+		pathName = "/" + volumeHeader.VolumeName
+	}
+	volumeBitmap, err := prodos.ReadVolumeBitmap(file)
+	if err != nil {
+		fmt.Printf("Failed to open drive image %s:\n  %s", fileName, err)
+		os.Exit(1)
+	}
+	freeBlocks := prodos.GetFreeBlockCount(volumeBitmap, volumeHeader.TotalBlocks)
 
-	// descend to subdirectories, if present
-	if len(subdirectories) > 0 {
-		for i := 0; i < len(subdirectories); i++ {
+	if recursive {
+		// Find all the subdirectories within this prodos prefix
+		subdirectories := []string{}
+
+		for _, fileEntry := range fileEntries {
+			if prodos.FileTypeToString(fileEntry.FileType) == "DIR" {
+				subdirectories = append(subdirectories, fileEntry.FileName)
+			}
+		}
+
+		prodos.DumpDirectoryFileList(pathName, fileEntries) // print file list w/o blocks info
+
+		for _, subdirectory := range subdirectories {
 			fmt.Printf("\n")
-			lsrecursive(fileName, pathName + "/" + subdirectories[i], false)
+			ls(fileName, pathName + "/" + subdirectory, true)
 		}
-	}
 
-	// finally, if this is the end of the initial lsrecursive call, print the blocks used/free info
-	if isStartPath {
-		prodos.DumpDirectoryBlockInfo(freeBlocks, volumeHeader.TotalBlocks)
+		// finally, if this is the end of the initial ls recursive call, print the blocks used/free info
+		if isStartPath {
+			prodos.DumpDirectoryBlockInfo(freeBlocks, volumeHeader.TotalBlocks)
+		}
+	} else {
+		prodos.DumpDirectory(freeBlocks, volumeHeader.TotalBlocks, pathName, fileEntries)
 	}
 }
 
