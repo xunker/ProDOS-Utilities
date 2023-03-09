@@ -158,8 +158,8 @@ func DumpBlock(buffer []byte) {
 	}
 }
 
-// DumpDirectory without final line flowing blocks used/free, for use in lsrecursive
-func DumpDirectoryWithoutBlockInfo(blocksFree int, totalBlocks int, path string, fileEntries []FileEntry) {
+// DumpDirectoryFileList displays the directory similar to ProDOS catalog
+func DumpDirectoryFileList(path string, fileEntries []FileEntry) {
 	fmt.Printf("%s\n\n", path)
 	fmt.Printf("NAME          TYPE BLOCKS  MODIFIED          CREATED           ENDFILE  SUBTYPE\n\n")
 
@@ -188,15 +188,15 @@ func DumpDirectoryWithoutBlockInfo(blocksFree int, totalBlocks int, path string,
 	}
 }
 
-// Print line showing the used/free blocks in a catalog
+// DumpDirectoryBlockInfo displays the used/free blocks in a catalog
 func DumpDirectoryBlockInfo(blocksFree int, totalBlocks int) {
 	fmt.Printf("\n")
 	fmt.Printf("BLOCKS FREE: %5d    BLOCKS USED: %5d      TOTAL BLOCKS: %5d\n", blocksFree, totalBlocks-blocksFree, totalBlocks)
 }
 
-// DumpDirectory displays the directory similar to ProDOS catalog
+// DumpDirectory displays prodos-catalog-style file list along with free/used block info
 func DumpDirectory(blocksFree int, totalBlocks int, path string, fileEntries []FileEntry) {
-	DumpDirectoryWithoutBlockInfo(blocksFree, totalBlocks, path, fileEntries)
+	DumpDirectoryFileList(path, fileEntries)
 
 	DumpDirectoryBlockInfo(blocksFree, totalBlocks)
 }
